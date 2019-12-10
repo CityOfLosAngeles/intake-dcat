@@ -112,13 +112,7 @@ def _get_extension_for_entry(intake_entry):
     elif (
         driver == "shapefile" or driver == "intake_geopandas.geopandas.ShapefileSource"
     ):
-        compression = _get_compression_for_entry(intake_entry)
-        if compression == "zip":
-            return ".zip"
-        elif not compression:
-            return ".shp"
-        else:
-            raise ValueError(f"Unexpected compression scheme for {str(intake_entry)}")
+        return ".zip"
     elif driver == "csv" or driver == "intake.source.csv.CSVSource":
         return ".csv"
     else:
@@ -135,13 +129,7 @@ def _get_compression_for_entry(intake_entry):
     scheme is used, returns `None`.
     """
     driver = intake_entry.get("driver")
-    if (
-        driver == "geojson"
-        or driver == "shapefile"
-        or driver == "intake_geopandas.geopandas.GeoJSONSource"
-        or driver == "intake_geopandas.geopandas.ShapefileSource"
-    ):
-        args = intake_entry.get("args", {})
-        return args.get("geopandas_kwargs", {}).get("compression")
+    if driver == "shapefile" or driver == "intake_geopandas.geopandas.ShapefileSource":
+        return "zip"
     else:
         return None
