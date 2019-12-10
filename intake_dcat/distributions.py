@@ -1,17 +1,21 @@
 import re
 
+DEFAULT_PRIORITIES = ["geojson", "shapefile", "csv"]
 
-def get_relevant_distribution(dcat_entry):
+
+def get_relevant_distribution(dcat_entry, priority=None):
     """
     Given a DCAT entry, find the most relevant distribution
     for the intake catalog. Returns a tuple of
     (intake_driver_name, distribution). In general,
     we choose the more specific formats over the less specific
-    formats. At present, they are ranked in the following order:
+    formats. By default, they are ranked in the following order:
 
         GeoJSON
         Shapefile
         CSV
+
+    You can provide a "priority" list to customize the priority.
 
     If none of these are found, None.
     If there are no distributions, it returns None.
@@ -20,15 +24,22 @@ def get_relevant_distribution(dcat_entry):
     if not distributions or not len(distributions):
         return None
 
-    for d in distributions:
-        if test_geojson(d):
-            return "geojson", geojson_driver_args(d)
-    for d in distributions:
-        if test_shapefile(d):
-            return "shapefile", shapefile_driver_args(d)
-    for d in distributions:
-        if test_csv(d):
-            return "csv", csv_driver_args(d)
+    priority = priority or DEFAULT_PRIORITIES
+    for p in priority:
+        if p.lower() == "geojson":
+            for d in distributions:
+                if test_geojson(d):
+                    return "geojson", geojson_driver_args(d)
+        elif p.lower() == "shapefile":
+            for d in distributions:
+                if test_shapefile(d):
+                    return "shapefile", shapefile_driver_args(d)
+        elif p.lower() == "csv":
+            for d in distributions:
+                if test_csv(d):
+                    return "csv", csv_driver_args(d)
+        else:
+            raise ValueError(f"Unexpected driver {p}")
 
     return None
 

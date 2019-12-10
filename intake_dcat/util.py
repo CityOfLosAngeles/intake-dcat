@@ -1,5 +1,5 @@
 import copy
-import os
+import time
 
 import requests
 import yaml
@@ -11,6 +11,9 @@ from .catalog import DCATCatalog
 
 # TODO: should we allow the user to pass in a s3fs session here?
 fs = s3fs.S3FileSystem()
+
+MAX_DOWNLOAD_ATTEMPTS = 60
+RETRY_DELAY = 5
 
 
 def mirror_data(manifest_file, upload=True, name=None, version=None):
@@ -50,7 +53,22 @@ def mirror_data(manifest_file, upload=True, name=None, version=None):
 
 
 def _upload_remote_data(old_uri, new_uri, dir=None):
-    r = requests.get(old_uri)
+    # Some servers, such as ESRI open data, can return 202 Accepted status codes
+    # while it is preparing a dataset. In that case, we enter a retry loop.
+    attempts = 0
+    while attempts < MAX_DOWNLOAD_ATTEMPTS:
+        r = requests.get(old_uri)
+        if r.status_code == 202:
+            attempts += 1
+            time.sleep(RETRY_DELAY)
+            continue
+        elif r.status_code == 200:
+            break
+        else:
+            raise RuntimeError(f"Unexpected response from DCAT server: {r.content}")
+    else:
+        raise RuntimeError("Unable to download dataset: Maximum retries met.")
+
     with tmpfile(dir=dir) as filename:
         with open(filename, "wb") as outfile:
             outfile.write(r.content)
@@ -70,7 +88,6 @@ def _construct_remote_entry(bucket_uri, entry, name, directory="", upload=True):
 
 
 def _construct_remote_uri(bucket_uri, entry, name, directory=""):
-    urlpath = entry["args"].get("urlpath")
     ext = _get_extension_for_entry(entry)
     key = f"{directory.strip('/')}/{name}{ext}" if directory else f"{name}{ext}"
     return f"{bucket_uri.strip('/')}/{key}"
@@ -90,7 +107,6 @@ def _get_extension_for_entry(intake_entry):
         CSV: ".csv"
     """
     driver = intake_entry.get("driver")
-    args = intake_entry.get("args", {})
     if driver == "geojson" or driver == "intake_geopandas.geopandas.GeoJSONSource":
         return ".geojson"
     elif (
